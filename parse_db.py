@@ -5,8 +5,6 @@ Created by: Ahrimdon (aided by GPT-4)
 Description: This script parses key elements of IW4MAdmin's database into a single consolidated, easy to read database that allows for easy server administration and logging.
 '''
 
-# Created by Ahrimdon aided by GPT-4
-
 import sqlite3
 import argparse
 import os
