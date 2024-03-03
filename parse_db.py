@@ -7,6 +7,7 @@ Description: This script parses key elements of IW4MAdmin's database into a sing
 
 import sqlite3
 import argparse
+import time
 import os
 import re
 
@@ -14,6 +15,7 @@ def setup_argparser():
     parser = argparse.ArgumentParser(description="Accurately parses IW4MAdmin's database into a consolidated, easy-to-read format.")
     parser.add_argument('-p', '--path', type=str, default="Database.db", help="Path to the IW4MAdmin database file.")
     parser.add_argument('-o', '--output', type=str, help="Output directory for the parsed database file.")
+    parser.add_argument('-t', '--time', action='store_true', help="Time the script's execution.")
     return parser.parse_args()
 
 def delete_existing_db(output_db_path):
@@ -24,6 +26,9 @@ def delete_existing_db(output_db_path):
 
 def main():
     args = setup_argparser()
+
+    if args.time:
+        start_time = time.time()  # Start timing
 
     db_path = args.path
     output_dir = args.output if args.output else '.'  # Use current directory if no output directory is specified
@@ -65,6 +70,10 @@ def main():
     new_conn.commit()
     existing_conn.close()
     new_conn.close()
+
+    if args.time:
+        end_time = time.time()  # End timing
+        print(f"Script execution time: {end_time - start_time:.2f} seconds")  # Print execution time
 
 def ip_address_table(existing_cur, new_cur):
     def fetch_client_info(src_cur):
