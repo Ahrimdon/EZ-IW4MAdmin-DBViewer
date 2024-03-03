@@ -83,68 +83,30 @@ def main():
     new_conn = sqlite3.connect(output_db_path)
     new_cur = new_conn.cursor()
 
-    # Process each table
-    if 'AuditLog' in config.get('tables', {}):
-        audit_log_limit = config['tables']['AuditLog']
-        audit_log_table(existing_cur, new_cur, limit=audit_log_limit)
-    else:
-        audit_log_table(existing_cur, new_cur)
+    # Define a mapping of table names to their processing functions
+    table_functions = {
+        'AuditLog': audit_log_table,
+        'ClientConnectionHistory': client_connection_history_table,
+        'ClientMessages': client_messages_table,
+        'Clients': clients_table,
+        'IPAddresses': ip_address_table,
+        'InboxMessagesModified': inbox_messages_modified_table,
+        'Maps': maps_table,
+        'Metadata': metadata_table,
+        'Penalties': penalties_table,
+        'PenaltyIdentifiers': penalty_identifiers_table,
+        'Servers': servers_table,
+    }
 
-    if 'ClientConnectionHistory' in config.get('tables', {}):
-        client_connection_history_limit = config['tables']['ClientConnectionHistory']
-        client_connection_history_table(existing_cur, new_cur, limit=client_connection_history_limit)
-    else:
-        client_connection_history_table(existing_cur, new_cur)
-
-    if 'ClientMessages' in config.get('tables', {}):
-        client_messages_limit = config['tables']['ClientMessages']
-        client_messages_table(existing_cur, new_cur, limit=client_messages_limit)
-    else:
-        client_messages_table(existing_cur, new_cur)
-
-    if 'Clients' in config.get('tables', {}):
-        clients_limit = config['tables']['Clients']
-        clients_table(existing_cur, new_cur, limit=clients_limit)
-    else:
-        clients_table(existing_cur, new_cur)
-
-    ip_address_table(existing_cur, new_cur)
-
-    if 'InboxMessagesModified' in config.get('tables', {}):
-        inbox_messages_modified_limit = config['tables']['InboxMessagesModified']
-        inbox_messages_modified_table(existing_cur, new_cur, limit=inbox_messages_modified_limit)
-    else:
-        inbox_messages_modified_table(existing_cur, new_cur)
-
-    if 'Maps' in config.get('tables', {}):
-        maps_limit = config['tables']['Maps']
-        maps_table(existing_cur, new_cur, limit=maps_limit)
-    else:
-        maps_table(existing_cur, new_cur)
-
-    if 'Metadata' in config.get('tables', {}):
-        metadata_limit = config['tables']['Metadata']
-        metadata_table(existing_cur, new_cur, limit=metadata_limit)
-    else:
-        metadata_table(existing_cur, new_cur)
-
-    if 'Penalties' in config.get('tables', {}):
-        penalties_limit = config['tables']['Penalties']
-        penalties_table(existing_cur, new_cur, limit=penalties_limit)
-    else:
-        penalties_table(existing_cur, new_cur)
-
-    if 'PenaltyIdentifiers' in config.get('tables', {}):
-        penalty_identifiers_limit = config['tables']['PenaltyIdentifiers']
-        penalty_identifiers_table(existing_cur, new_cur, limit=penalty_identifiers_limit)
-    else:
-        penalty_identifiers_table(existing_cur, new_cur)
-
-    if 'Servers' in config.get('tables', {}):
-        servers_limit = config['tables']['Servers']
-        servers_table(existing_cur, new_cur, limit=servers_limit)
-    else:
-        servers_table(existing_cur, new_cur)
+    # Process each table according to the configuration
+    for table_name, func in table_functions.items():
+        limit = config.get('tables', {}).get(table_name)
+        if limit is not None:
+            print(f"Processing {table_name} with limit: {limit}")
+            func(existing_cur, new_cur, limit=limit)  # Assuming each function can accept a limit parameter
+        else:
+            print(f"Processing {table_name} without limit")
+            func(existing_cur, new_cur)
 
     # Commit and close
     new_conn.commit()
