@@ -5,7 +5,8 @@ from distutils.sysconfig import get_python_lib
 site_packages_path = get_python_lib()
 
 NAME = "IW4MAdmin_DB_Parser"
-SCRIPT = "combine_db.py"
+SCRIPT = "parse_db.py"
+ICON = "assets/icon.png"
 
 PyInstaller.__main__.run([
     "{}".format(SCRIPT),
@@ -13,6 +14,7 @@ PyInstaller.__main__.run([
     "--noconfirm",
     "--onefile",
     "--windowed",
+    "--icon", f"{ICON}"
 ])
 
 # create symbolic hardlink to main directory
