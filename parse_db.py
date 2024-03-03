@@ -55,7 +55,7 @@ def main():
     args = setup_argparser()
 
     if args.time:
-        start_time = time.time()  # Start timing
+        total_start_time = time.time()  # Start timing for the entire script
 
     config = {}
     if args.config:
@@ -101,6 +101,9 @@ def main():
 
     sort_order = args.sort
 
+    if args.time:
+        sqlite_start_time = time.time()  # Start timing for SQLite operations
+
     # Process each table according to the configuration
     for table_name, func in table_functions.items():
         limit = config.get('tables', {}).get(table_name)
@@ -113,15 +116,27 @@ def main():
 
     # Commit and close
     new_conn.commit() # Commit changes before vacuuming
+    if args.time:
+        sqlite_end_time = time.time()  # End timing for SQLite operations
+        print(f"SQLite execution time: {sqlite_end_time - sqlite_start_time:.4f} seconds")
+
+    # Vacuum process timing
+    if args.time:
+        vacuum_start_time = time.time()  # Start timing for vacuuming
+
     new_conn.execute("VACUUM;")
     new_conn.commit()
+
+    if args.time:
+        vacuum_end_time = time.time()  # End timing for vacuuming
+        print(f"Vacuuming duration: {vacuum_end_time - vacuum_start_time:.4f} seconds")
     
     existing_conn.close()
     new_conn.close()
 
     if args.time:
-        end_time = time.time()  # End timing
-        print(f"Script execution time: {end_time - start_time:.4f} seconds")  # Print execution time
+        total_end_time = time.time()  # End timing for the entire script
+        print(f"Total script execution time: {total_end_time - total_start_time:.4f} seconds")
 
 def audit_log_table(existing_cur, new_cur, limit=None, sort_order='DESC'):
     new_cur.execute("""
