@@ -22,7 +22,7 @@ def delete_existing_db(output_db_path):
     """Check for an existing parsed DB and delete it if found."""
     if os.path.exists(output_db_path):
         os.remove(output_db_path)
-        print(f"Existing parsed database at {output_db_path} has been deleted.")
+        print(f"Existing parsed database at {output_db_path} has been removed.")
 
 def main():
     args = setup_argparser()
@@ -73,7 +73,7 @@ def main():
 
     if args.time:
         end_time = time.time()  # End timing
-        print(f"Script execution time: {end_time - start_time:.2f} seconds")  # Print execution time
+        print(f"Script execution time: {end_time - start_time:.4f} seconds")  # Print execution time
 
 def ip_address_table(existing_cur, new_cur):
     def fetch_client_info(src_cur):
