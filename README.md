@@ -1,15 +1,17 @@
-# EZ-IW4MAdmin-DBViewer
+# IW4MAdmin Database Parser
 
-#### A simple collecton of Python3 Scripts that allowa you to export your entire IW4MAdmin Database and view it in an easy fashion. While it is already possible to read `IW4NAdmin\Database\Database.db`, there are many constraints/keys/links that make viewing the default database *extremely* difficult. 
+#### A Python3 script designed to export your IW4MAdmin database, parsing it into an easily accessible format. While the native `IW4MAdmin\Database\Database.db` is already accessible, navigating its complex relationships, keys, and constraints can be frustrating. This tool simplifies and streamlines the data, offering a more user-friendly view.
 
-* Usage: `python combine_db.py`
+* Usage: `python parse_db.py`
 
 ## Instructions
-
-1. Copy database to a folder and make sure it's named `Database.db`
-
-2. Copy script `combine_db.py`, into the locatation of your Database's copy.
-
+1. Copy the database to a folder and make sure it's named 'Database.db'
+2. Copy the script `parse_db.py` into the location of your database's copy
 3. Run the script
 
-* This will generate a new database named `Plutonium Servers.db` with all of the essential information 
+* This will generate a new database named `Database_parsed.db` with all of the essential information.
+
+## Building
+
+1. Ensure Python3 is installed on your system and added to PATH
+2. Run `build.py`
