@@ -10,24 +10,35 @@ Description: This script parses key elements of IW4MAdmin's database into a sing
 import sqlite3
 import argparse
 import os
+import re
 
 def setup_argparser():
-    parser = argparse.ArgumentParser(description="Parses IW4MAdmin's database into a consolidated, easy-to-read format.")
+    parser = argparse.ArgumentParser(description="Accurately parses IW4MAdmin's database into a consolidated, easy-to-read format.")
+    parser.add_argument('-p', '--path', type=str, default="Database.db", help="Path to the IW4MAdmin database file.")
+    parser.add_argument('-o', '--output', type=str, help="Output directory for the parsed database file.")
     return parser.parse_args()
 
 def main():
-    # Parse arguments (for future expansion, currently only handles help)
     args = setup_argparser()
 
-    # Check if Database.db exists
-    if not os.path.isfile("Database.db"):
-        print("No database file (Database.db) found. Please ensure the file is in the same directory as this script.")
+    db_path = args.path
+    output_dir = args.output if args.output else '.'  # Use current directory if no output directory is specified
+    output_db_path = os.path.join(output_dir, "Database_parsed.db")
+
+    # Ensure the output directory exists
+    if not os.path.isdir(output_dir):
+        print(f"Creating output directory at {output_dir}")
+        os.makedirs(output_dir, exist_ok=True)
+
+    # Check if the specified Database.db exists
+    if not os.path.isfile(db_path):
+        print(f"No database file ({db_path}) found. Please ensure the file exists.")
         return  # Exit the script if file not found
 
-    existing_conn = sqlite3.connect("Database.db")
+    existing_conn = sqlite3.connect(db_path)
     existing_cur = existing_conn.cursor()
 
-    new_conn = sqlite3.connect("Database_parsed.db")
+    new_conn = sqlite3.connect(output_db_path)
     new_cur = new_conn.cursor()
 
     # ------------------- IPAddresses Table -------------------
