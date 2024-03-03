@@ -433,18 +433,16 @@ def clients_table(existing_cur, new_cur, limit=None, sort_order='DESC'):
         new_cur.execute("INSERT INTO Clients (Connections, Name, FirstConnection, Game, LastConnection, Level, Masked, TotalConnectionTime, IP) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", new_row)
 
 def ip_address_table(existing_cur, new_cur, limit=None, sort_order='DESC'):
-    def fetch_client_info(src_cur):
-        src_cur.execute("""
-        SELECT Name, SearchableIPAddress, DateAdded FROM EFAlias
-        """)
-        client_info = []
-        for row in src_cur.fetchall():
-            name = row[0].replace('^7', '')  
-            client_info.append((name, row[1], row[2]))
+    query = f"""
+    SELECT Name, SearchableIPAddress, DateAdded
+    FROM EFAlias
+    ORDER BY DateAdded {sort_order}
+    """
+    if limit:
+        query += f" LIMIT {limit}"
 
-        return client_info
-
-    client_info = fetch_client_info(existing_cur)
+    existing_cur.execute(query)
+    client_info = [(row[0].replace('^7', ''), row[1], row[2]) for row in existing_cur.fetchall()]
 
     new_cur.execute("""
     CREATE TABLE IF NOT EXISTS "IPAddresses" (
@@ -473,29 +471,39 @@ def inbox_messages_modified_table(existing_cur, new_cur, limit=None, sort_order=
     )
     """)
 
-    existing_cur.execute("SELECT * FROM InboxMessages")
+    query = f"""
+    SELECT InboxMessageId, CreatedDateTime, SourceClientId, DestinationClientId, ServerId, Message, IsDelivered
+    FROM InboxMessages
+    ORDER BY InboxMessageId {sort_order}
+    """
+    if limit:
+        query += f" LIMIT {limit}"
+
+    existing_cur.execute(query)
     inbox_messages = existing_cur.fetchall()
 
     for msg in inbox_messages:
-        msg_id, created, _, source_client_id, dest_client_id, server_id, message, is_delivered = msg
+        msg_id, created, source_client_id, dest_client_id, server_id, message, is_delivered = msg
 
-        for client_id in (source_client_id, dest_client_id):
-            existing_cur.execute("SELECT CurrentAliasId FROM EFClients WHERE ClientId = ?", (client_id,))
-            alias_id = existing_cur.fetchone()[0]
-            existing_cur.execute("SELECT Name FROM EFAlias WHERE AliasId = ?", (alias_id,))
-            name = existing_cur.fetchone()[0].replace('^7', '')
-
-            if client_id == source_client_id:
-                origin = name
-            else:
-                target = name
-
+        origin = fetch_client_name(existing_cur, source_client_id)
+        target = fetch_client_name(existing_cur, dest_client_id)
         read = "Yes" if is_delivered == 1 else "No"
 
         new_cur.execute("""
         INSERT INTO InboxMessagesModified (InboxMessageId, Created, Origin, Target, ServerId, Message, Read)
         VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (msg_id, created, origin, target, server_id, message, read))
+
+def fetch_client_name(cur, client_id):
+    cur.execute("SELECT CurrentAliasId FROM EFClients WHERE ClientId = ?", (client_id,))
+    alias_id = cur.fetchone()
+    if alias_id:
+        alias_id = alias_id[0]
+        cur.execute("SELECT Name FROM EFAlias WHERE AliasId = ?", (alias_id,))
+        name = cur.fetchone()
+        if name:
+            return name[0].replace('^7', '')
+    return 'Unknown'
 
 def maps_table(existing_cur, new_cur, limit=None, sort_order='DESC'):
     new_cur.execute("""
