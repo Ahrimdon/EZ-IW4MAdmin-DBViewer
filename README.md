@@ -3,7 +3,9 @@
 #### A Python3 script designed to export your IW4MAdmin database, parsing it into an easily accessible format. While the native `IW4MAdmin\Database\Database.db` is already accessible, navigating its complex relationships, keys, and constraints can be frustrating. This tool simplifies and streamlines the data, offering a more user-friendly view.
 
 ## Arguments
-```usage: parse_db.py [-h] [-s {ASC,DESC}] [-p PATH] [-o OUTPUT] [-t] [-c]
+
+```
+usage: parse_db.py [-h] [-s {ASC,DESC}] [-p PATH] [-o OUTPUT] [-t] [-c]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -13,9 +15,11 @@ optional arguments:
   -o OUTPUT, --output OUTPUT
                         Output directory for the parsed database file.
   -t, --time            Time the script's execution.
-  -c, --config          Use default config.json for configuration.```
+  -c, --config          Use default config.json for configuration.
+```
 
 ## Instructions
+
 1. Copy the database to a folder and make sure it's named 'Database.db'
 2. Copy the script `parse_db.py` into the location of your database's copy
 3. Run the script
