@@ -8,9 +8,22 @@ Description: This script parses key elements of IW4MAdmin's database into a sing
 # Created by Ahrimdon aided by GPT-4
 
 import sqlite3
-import re
+import argparse
+import os
+
+def setup_argparser():
+    parser = argparse.ArgumentParser(description="Parses IW4MAdmin's database into a consolidated, easy-to-read format.")
+    return parser.parse_args()
 
 def main():
+    # Parse arguments (for future expansion, currently only handles help)
+    args = setup_argparser()
+
+    # Check if Database.db exists
+    if not os.path.isfile("Database.db"):
+        print("No database file (Database.db) found. Please ensure the file is in the same directory as this script.")
+        return  # Exit the script if file not found
+
     existing_conn = sqlite3.connect("Database.db")
     existing_cur = existing_conn.cursor()
 
