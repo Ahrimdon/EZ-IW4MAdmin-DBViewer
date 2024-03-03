@@ -8,6 +8,7 @@ Description: This script parses key elements of IW4MAdmin's database into a sing
 import sqlite3
 import argparse
 import time
+import json
 import os
 import re
 
@@ -16,6 +17,7 @@ def setup_argparser():
     parser.add_argument('-p', '--path', type=str, default="Database.db", help="Path to the IW4MAdmin database file.")
     parser.add_argument('-o', '--output', type=str, help="Output directory for the parsed database file.")
     parser.add_argument('-t', '--time', action='store_true', help="Time the script's execution.")
+    parser.add_argument('-c', '--config', type=str, help="Path to the configuration file.")
     return parser.parse_args()
 
 def delete_existing_db(output_db_path):
@@ -24,11 +26,39 @@ def delete_existing_db(output_db_path):
         os.remove(output_db_path)
         print(f"Existing parsed database at {output_db_path} has been removed.")
 
+def load_or_create_config(config_path):
+    default_config = {
+        "tables": {
+            "AuditLog": 1000,  # Example default value
+            "ClientConnectionHistory": 1000,
+            "ClientMessages": 1000,
+            "Clients": 1000,
+            "IPAddresses": 1000,
+            "InboxMessagesModified": 1000,
+            "Maps": 1000,
+            "Metadata": 1000,
+            "Penalties": 1000,
+            "PenaltyIdentifiers": 1000,
+            "Servers": 1000
+        }
+    }
+    if not os.path.isfile(config_path):
+        with open(config_path, 'w') as config_file:
+            json.dump(default_config, config_file, indent=4)
+        print(f"Default configuration file created at {config_path}")
+    else:
+        with open(config_path, 'r') as config_file:
+            return json.load(config_file)
+
 def main():
     args = setup_argparser()
 
     if args.time:
         start_time = time.time()  # Start timing
+
+    config = {}
+    if args.config:
+        config = load_or_create_config(args.config)
 
     db_path = args.path
     output_dir = args.output if args.output else '.'  # Use current directory if no output directory is specified
@@ -54,17 +84,67 @@ def main():
     new_cur = new_conn.cursor()
 
     # Process each table
+    if 'AuditLog' in config.get('tables', {}):
+        audit_log_limit = config['tables']['AuditLog']
+        audit_log_table(existing_cur, new_cur, limit=audit_log_limit)
+    else:
+        audit_log_table(existing_cur, new_cur)
+
+    if 'ClientConnectionHistory' in config.get('tables', {}):
+        client_connection_history_limit = config['tables']['ClientConnectionHistory']
+        client_connection_history_table(existing_cur, new_cur, limit=client_connection_history_limit)
+    else:
+        client_connection_history_table(existing_cur, new_cur)
+
+    if 'ClientMessages' in config.get('tables', {}):
+        client_messages_limit = config['tables']['ClientMessages']
+        client_messages_table(existing_cur, new_cur, limit=client_messages_limit)
+    else:
+        client_messages_table(existing_cur, new_cur)
+
+    if 'Clients' in config.get('tables', {}):
+        clients_limit = config['tables']['Clients']
+        clients_table(existing_cur, new_cur, limit=clients_limit)
+    else:
+        clients_table(existing_cur, new_cur)
+
     ip_address_table(existing_cur, new_cur)
-    audit_log_table(existing_cur, new_cur)
-    client_connection_table(existing_cur, new_cur)
-    messages_table(existing_cur, new_cur)
-    client_table(existing_cur, new_cur)
-    maps_table(existing_cur, new_cur)
-    meta_table(existing_cur, new_cur)
-    penalties_table(existing_cur, new_cur)
-    penalty_Identifiers_table(existing_cur, new_cur)
-    servers_table(existing_cur, new_cur)
-    inbox_messages_table(existing_cur, new_cur)
+
+    if 'InboxMessagesModified' in config.get('tables', {}):
+        inbox_messages_modified_limit = config['tables']['InboxMessagesModified']
+        inbox_messages_modified_table(existing_cur, new_cur, limit=inbox_messages_modified_limit)
+    else:
+        inbox_messages_modified_table(existing_cur, new_cur)
+
+    if 'Maps' in config.get('tables', {}):
+        maps_limit = config['tables']['Maps']
+        maps_table(existing_cur, new_cur, limit=maps_limit)
+    else:
+        maps_table(existing_cur, new_cur)
+
+    if 'Metadata' in config.get('tables', {}):
+        metadata_limit = config['tables']['Metadata']
+        metadata_table(existing_cur, new_cur, limit=metadata_limit)
+    else:
+        metadata_table(existing_cur, new_cur)
+
+    if 'Penalties' in config.get('tables', {}):
+        penalties_limit = config['tables']['Penalties']
+        penalties_table(existing_cur, new_cur, limit=penalties_limit)
+    else:
+        penalties_table(existing_cur, new_cur)
+
+    if 'PenaltyIdentifiers' in config.get('tables', {}):
+        penalty_identifiers_limit = config['tables']['PenaltyIdentifiers']
+        penalty_identifiers_table(existing_cur, new_cur, limit=penalty_identifiers_limit)
+    else:
+        penalty_identifiers_table(existing_cur, new_cur)
+
+    if 'Servers' in config.get('tables', {}):
+        servers_limit = config['tables']['Servers']
+        servers_table(existing_cur, new_cur, limit=servers_limit)
+    else:
+        servers_table(existing_cur, new_cur)
 
     # Commit and close
     new_conn.commit()
@@ -75,35 +155,7 @@ def main():
         end_time = time.time()  # End timing
         print(f"Script execution time: {end_time - start_time:.4f} seconds")  # Print execution time
 
-def ip_address_table(existing_cur, new_cur):
-    def fetch_client_info(src_cur):
-        src_cur.execute("""
-        SELECT Name, SearchableIPAddress, DateAdded FROM EFAlias
-        """)
-        client_info = []
-        for row in src_cur.fetchall():
-            name = row[0].replace('^7', '')  
-            client_info.append((name, row[1], row[2]))
-
-        return client_info
-
-    client_info = fetch_client_info(existing_cur)
-
-    new_cur.execute("""
-    CREATE TABLE IF NOT EXISTS "IPAddresses" (
-        Name TEXT NOT NULL,
-        SearchableIPAddress TEXT,
-        DateAdded TEXT NOT NULL
-    )
-    """)
-
-    new_cur.executemany("""
-    INSERT INTO "IPAddresses" (
-        Name, SearchableIPAddress, DateAdded
-    ) VALUES (?, ?, ?)
-    """, client_info)
-
-def audit_log_table(existing_cur, new_cur):
+def audit_log_table(existing_cur, new_cur, limit=None):
     new_cur.execute("""
     CREATE TABLE "AuditLog" (
         "ChangeHistoryId" INTEGER NOT NULL,
@@ -117,7 +169,7 @@ def audit_log_table(existing_cur, new_cur):
     )
     """)
 
-    existing_cur.execute("""
+    query = """
     SELECT
         EFChangeHistory.ChangeHistoryId,
         EFChangeHistory.TypeOfChange,
@@ -128,7 +180,11 @@ def audit_log_table(existing_cur, new_cur):
         EFChangeHistory.TargetEntityId
     FROM
         EFChangeHistory
-    """)
+    """
+    if limit:
+        query += f" LIMIT {limit}"
+
+    existing_cur.execute(query)
     rows = existing_cur.fetchall()
 
     client_name_map = {}
@@ -178,7 +234,7 @@ def audit_log_table(existing_cur, new_cur):
         new_row = (row[0], type_of_change, row[2], row[3], row[4], client_name_map[origin_entity_id], client_name_map[target_entity_id])
         new_cur.execute("INSERT INTO \"AuditLog\" (ChangeHistoryId, TypeOfChange, Time, Data, Command, Origin, Target) VALUES (?, ?, ?, ?, ?, ?, ?)", new_row)
 
-def client_connection_table(existing_cur, new_cur):
+def client_connection_history_table(existing_cur, new_cur, limit=None):
     new_cur.execute("""
     CREATE TABLE "ClientConnectionHistory" (
         "ConnectionId" INTEGER NOT NULL,
@@ -190,7 +246,7 @@ def client_connection_table(existing_cur, new_cur):
     )
     """)
 
-    existing_cur.execute("""
+    query = """
     SELECT
         EFClientConnectionHistory.ClientConnectionId,
         EFClientConnectionHistory.ClientId,
@@ -199,7 +255,11 @@ def client_connection_table(existing_cur, new_cur):
         EFClientConnectionHistory.ServerId
     FROM
         EFClientConnectionHistory
-    """)
+    """
+    if limit:
+        query += f" LIMIT {limit}"
+
+    existing_cur.execute(query)
     rows = existing_cur.fetchall()
 
     for row in rows:
@@ -241,7 +301,7 @@ def client_connection_table(existing_cur, new_cur):
         new_row = (row[0], client_name, row[2], connection_type, server_hostname)
         new_cur.execute("INSERT INTO ClientConnectionHistory (ConnectionId, Client, ConnectionTime, ConnectionType, Server) VALUES (?, ?, ?, ?, ?)", new_row)
 
-def messages_table(existing_cur, new_cur):
+def client_messages_table(existing_cur, new_cur, limit=None):
     new_cur.execute("""
     CREATE TABLE "ClientMessages" (
         "MessageId" INTEGER NOT NULL,
@@ -253,7 +313,7 @@ def messages_table(existing_cur, new_cur):
     )
     """)
 
-    existing_cur.execute("""
+    query = """
     SELECT
         EFClientMessages.MessageId,
         EFClientMessages.ClientId,
@@ -262,7 +322,11 @@ def messages_table(existing_cur, new_cur):
         EFClientMessages.ServerId
     FROM
         EFClientMessages
-    """)
+    """
+    if limit:
+        query += f" LIMIT {limit}"
+
+    existing_cur.execute(query)
     rows = existing_cur.fetchall()
 
     for row in rows:
@@ -304,7 +368,7 @@ def messages_table(existing_cur, new_cur):
         new_row = (row[0], client_name, row[2], row[3], server_hostname)
         new_cur.execute("INSERT INTO ClientMessages (MessageId, Client, Message, TimeSent, Server) VALUES (?, ?, ?, ?, ?)", new_row)
 
-def client_table(existing_cur, new_cur):
+def clients_table(existing_cur, new_cur, limit=None):
     new_cur.execute("""
     CREATE TABLE "Clients" (
         "Connections" INTEGER NOT NULL,
@@ -319,7 +383,7 @@ def client_table(existing_cur, new_cur):
     )
     """)
 
-    existing_cur.execute("""
+    query = """
     SELECT
         EFClients.Connections,
         EFClients.CurrentAliasId,
@@ -334,7 +398,11 @@ def client_table(existing_cur, new_cur):
         EFClients
     JOIN
         EFAlias ON EFClients.CurrentAliasId = EFAlias.AliasId
-    """)
+    """
+    if limit:
+        query += f" LIMIT {limit}"
+
+    existing_cur.execute(query)
     rows = existing_cur.fetchall()
 
     for row in rows:
@@ -375,7 +443,72 @@ def client_table(existing_cur, new_cur):
         new_row = (connections, client_name, first_connection, game, last_connection, level, masked, total_connection_time, ip_address)
         new_cur.execute("INSERT INTO Clients (Connections, Name, FirstConnection, Game, LastConnection, Level, Masked, TotalConnectionTime, IP) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", new_row)
 
-def maps_table(existing_cur, new_cur):
+def ip_address_table(existing_cur, new_cur, limit=None):
+    def fetch_client_info(src_cur):
+        src_cur.execute("""
+        SELECT Name, SearchableIPAddress, DateAdded FROM EFAlias
+        """)
+        client_info = []
+        for row in src_cur.fetchall():
+            name = row[0].replace('^7', '')  
+            client_info.append((name, row[1], row[2]))
+
+        return client_info
+
+    client_info = fetch_client_info(existing_cur)
+
+    new_cur.execute("""
+    CREATE TABLE IF NOT EXISTS "IPAddresses" (
+        Name TEXT NOT NULL,
+        SearchableIPAddress TEXT,
+        DateAdded TEXT NOT NULL
+    )
+    """)
+
+    new_cur.executemany("""
+    INSERT INTO "IPAddresses" (
+        Name, SearchableIPAddress, DateAdded
+    ) VALUES (?, ?, ?)
+    """, client_info)
+
+def inbox_messages_modified_table(existing_cur, new_cur, limit=None):
+    new_cur.execute("""
+    CREATE TABLE InboxMessagesModified (
+        InboxMessageId INTEGER PRIMARY KEY,
+        Created TEXT,
+        Origin TEXT,
+        Target TEXT,
+        ServerId INTEGER,
+        Message TEXT,
+        Read TEXT
+    )
+    """)
+
+    existing_cur.execute("SELECT * FROM InboxMessages")
+    inbox_messages = existing_cur.fetchall()
+
+    for msg in inbox_messages:
+        msg_id, created, _, source_client_id, dest_client_id, server_id, message, is_delivered = msg
+
+        for client_id in (source_client_id, dest_client_id):
+            existing_cur.execute("SELECT CurrentAliasId FROM EFClients WHERE ClientId = ?", (client_id,))
+            alias_id = existing_cur.fetchone()[0]
+            existing_cur.execute("SELECT Name FROM EFAlias WHERE AliasId = ?", (alias_id,))
+            name = existing_cur.fetchone()[0].replace('^7', '')
+
+            if client_id == source_client_id:
+                origin = name
+            else:
+                target = name
+
+        read = "Yes" if is_delivered == 1 else "No"
+
+        new_cur.execute("""
+        INSERT INTO InboxMessagesModified (InboxMessageId, Created, Origin, Target, ServerId, Message, Read)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (msg_id, created, origin, target, server_id, message, read))
+
+def maps_table(existing_cur, new_cur, limit=None):
     new_cur.execute("""
     CREATE TABLE IF NOT EXISTS "Maps" (
         "MapId" INTEGER NOT NULL,
@@ -386,12 +519,16 @@ def maps_table(existing_cur, new_cur):
     )
     """)
 
-    existing_cur.execute("""
+    query = """
     SELECT
         MapId, CreatedDateTime, Name, Game
     FROM
         EFMaps
-    """)
+    """
+    if limit:
+        query += f" LIMIT {limit}"
+
+    existing_cur.execute(query)
     rows = existing_cur.fetchall()
 
     modified_rows = []
@@ -406,7 +543,7 @@ def maps_table(existing_cur, new_cur):
     ) VALUES (?, ?, ?, ?)
     """, modified_rows)
 
-def meta_table(existing_cur, new_cur):
+def metadata_table(existing_cur, new_cur, limit=None):
     new_cur.execute("""
     CREATE TABLE "Metadata" (
         "MetaId" INTEGER NOT NULL,
@@ -417,7 +554,7 @@ def meta_table(existing_cur, new_cur):
     )
     """)
 
-    existing_cur.execute("""
+    query = """
     SELECT
         EFMeta.MetaId,
         EFMeta.ClientId,
@@ -426,7 +563,11 @@ def meta_table(existing_cur, new_cur):
         EFMeta.Value
     FROM
         EFMeta
-    """)
+    """
+    if limit:
+        query += f" LIMIT {limit}"
+
+    existing_cur.execute(query)
     rows = existing_cur.fetchall()
 
     for row in rows:
@@ -473,7 +614,7 @@ def meta_table(existing_cur, new_cur):
         new_row = (meta_id, client_name, created, key, value)
         new_cur.execute("INSERT INTO Metadata (MetaId, Name, Timestamp, Note, Value) VALUES (?, ?, ?, ?, ?)", new_row)
 
-def penalties_table(existing_cur, new_cur):
+def penalties_table(existing_cur, new_cur, limit=None):
     new_cur.execute("""
     CREATE TABLE "Penalties" (
         "PenaltyId" INTEGER NOT NULL,
@@ -488,7 +629,7 @@ def penalties_table(existing_cur, new_cur):
     )
     """)
 
-    existing_cur.execute("""
+    query = """
     SELECT
         EFPenalties.PenaltyId,
         EFPenalties.AutomatedOffense,
@@ -501,7 +642,11 @@ def penalties_table(existing_cur, new_cur):
         EFPenalties."When"
     FROM
         EFPenalties
-    """)
+    """
+    if limit:
+        query += f" LIMIT {limit}"
+
+    existing_cur.execute(query)
     rows = existing_cur.fetchall()
 
     for row in rows:
@@ -588,7 +733,7 @@ def penalties_table(existing_cur, new_cur):
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (penalty_id, automated_offense, expires, evaded_offense, offender_name, offense, punisher_name, penalty_type, timestamp))
 
-def penalty_Identifiers_table(existing_cur, new_cur):
+def penalty_identifiers_table(existing_cur, new_cur, limit=None):
     new_cur.execute("""
     CREATE TABLE "PenaltyIdentifiers" (
         "PenaltyIdentifierId" INTEGER NOT NULL,
@@ -598,7 +743,7 @@ def penalty_Identifiers_table(existing_cur, new_cur):
     )
     """)
 
-    existing_cur.execute("""
+    query = """
     SELECT
         EFPenaltyIdentifiers.PenaltyIdentifierId,
         EFPenaltyIdentifiers.PenaltyId,
@@ -606,7 +751,11 @@ def penalty_Identifiers_table(existing_cur, new_cur):
         EFPenaltyIdentifiers.NetworkId
     FROM
         EFPenaltyIdentifiers
-    """)
+    """
+    if limit:
+        query += f" LIMIT {limit}"
+
+    existing_cur.execute(query)
     rows = existing_cur.fetchall()
 
     for row in rows:
@@ -643,7 +792,7 @@ def penalty_Identifiers_table(existing_cur, new_cur):
         VALUES (?, ?, ?, ?)
         """, (penalty_identifier_id, penalty_id, created, client_name))
 
-def servers_table(existing_cur, new_cur):
+def servers_table(existing_cur, new_cur, limit=None):
     new_cur.execute("""
     CREATE TABLE "Servers" (
         "ServerId" INTEGER NOT NULL,
@@ -656,10 +805,14 @@ def servers_table(existing_cur, new_cur):
     )
     """)
 
-    existing_cur.execute("""
+    query = """
     SELECT ServerId, Active, Port, Endpoint, GameName, HostName, IsPasswordProtected
     FROM EFServers
-    """)
+    """
+    if limit:
+        query += f" LIMIT {limit}"
+
+    existing_cur.execute(query)
     rows = existing_cur.fetchall()
 
     game_mapping = {5: "WaW", 7: "BO2", 6: "BO", 3: "MW3"}
@@ -688,43 +841,6 @@ def servers_table(existing_cur, new_cur):
             Password
         ) VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (server_id, active, port, endpoint, game_name, server_name, password))
-
-def inbox_messages_table(existing_cur, new_cur):
-    new_cur.execute("""
-    CREATE TABLE InboxMessagesModified (
-        InboxMessageId INTEGER PRIMARY KEY,
-        Created TEXT,
-        Origin TEXT,
-        Target TEXT,
-        ServerId INTEGER,
-        Message TEXT,
-        Read TEXT
-    )
-    """)
-
-    existing_cur.execute("SELECT * FROM InboxMessages")
-    inbox_messages = existing_cur.fetchall()
-
-    for msg in inbox_messages:
-        msg_id, created, _, source_client_id, dest_client_id, server_id, message, is_delivered = msg
-
-        for client_id in (source_client_id, dest_client_id):
-            existing_cur.execute("SELECT CurrentAliasId FROM EFClients WHERE ClientId = ?", (client_id,))
-            alias_id = existing_cur.fetchone()[0]
-            existing_cur.execute("SELECT Name FROM EFAlias WHERE AliasId = ?", (alias_id,))
-            name = existing_cur.fetchone()[0].replace('^7', '')
-
-            if client_id == source_client_id:
-                origin = name
-            else:
-                target = name
-
-        read = "Yes" if is_delivered == 1 else "No"
-
-        new_cur.execute("""
-        INSERT INTO InboxMessagesModified (InboxMessageId, Created, Origin, Target, ServerId, Message, Read)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (msg_id, created, origin, target, server_id, message, read))
 
 if __name__ == '__main__':
     main()
