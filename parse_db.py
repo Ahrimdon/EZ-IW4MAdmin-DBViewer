@@ -18,7 +18,7 @@ def setup_argparser():
     parser.add_argument('-p', '--path', type=str, default="Database.db", help="Path to the IW4MAdmin database file.")
     parser.add_argument('-o', '--output', type=str, help="Output directory for the parsed database file.")
     parser.add_argument('-t', '--time', action='store_true', help="Time the script's execution.")
-    parser.add_argument('-c', '--config', type=str, help="Path to the configuration file.")
+    parser.add_argument('-c', '--config', action='store_true', help="Use default config.json for configuration.")
     return parser.parse_args()
 
 def delete_existing_db(output_db_path):
@@ -27,10 +27,11 @@ def delete_existing_db(output_db_path):
         os.remove(output_db_path)
         print(f"Existing parsed database at {output_db_path} has been removed.")
 
-def load_or_create_config(config_path):
+def load_or_create_config():
+    config_path = "config.json"  # Always use config.json
     default_config = {
         "tables": {
-            "AuditLog": 1000,  # Example default value
+            "AuditLog": 1000,
             "ClientConnectionHistory": 1000,
             "ClientMessages": 1000,
             "Clients": 1000,
@@ -40,7 +41,7 @@ def load_or_create_config(config_path):
             "Metadata": 1000,
             "Penalties": 1000,
             "PenaltyIdentifiers": 1000,
-            "Servers": 1000
+            "Servers": 1000,
         }
     }
     if not os.path.isfile(config_path):
@@ -48,8 +49,9 @@ def load_or_create_config(config_path):
             json.dump(default_config, config_file, indent=4)
         print(f"Default configuration file created at {config_path}")
     else:
-        with open(config_path, 'r') as config_file:
+        with open(config_path) as config_file:
             return json.load(config_file)
+    return default_config
 
 def main():
     args = setup_argparser()
@@ -59,7 +61,7 @@ def main():
 
     config = {}
     if args.config:
-        config = load_or_create_config(args.config)
+        config = load_or_create_config()
 
     db_path = args.path
     output_dir = args.output if args.output else '.'  # Use current directory if no output directory is specified
