@@ -14,6 +14,7 @@ import re
 
 def setup_argparser():
     parser = argparse.ArgumentParser(description="Accurately parses IW4MAdmin's database into a consolidated, easy-to-read format.")
+    parser.add_argument('-s', '--sort', type=str, choices=['ASC', 'DESC'], default='DESC', help="Sort order for the query results (ASC or DESC).")
     parser.add_argument('-p', '--path', type=str, default="Database.db", help="Path to the IW4MAdmin database file.")
     parser.add_argument('-o', '--output', type=str, help="Output directory for the parsed database file.")
     parser.add_argument('-t', '--time', action='store_true', help="Time the script's execution.")
@@ -98,18 +99,23 @@ def main():
         'Servers': servers_table,
     }
 
+    sort_order = args.sort
+
     # Process each table according to the configuration
     for table_name, func in table_functions.items():
         limit = config.get('tables', {}).get(table_name)
         if limit is not None:
             print(f"Processing {table_name} with limit: {limit}")
-            func(existing_cur, new_cur, limit=limit)  # Assuming each function can accept a limit parameter
+            func(existing_cur, new_cur, limit=limit, sort_order=sort_order)  # Assuming each function can accept a limit parameter
         else:
             print(f"Processing {table_name} without limit")
-            func(existing_cur, new_cur)
+            func(existing_cur, new_cur, sort_order=sort_order)
 
     # Commit and close
+    new_conn.commit() # Commit changes before vacuuming
+    new_conn.execute("VACUUM;")
     new_conn.commit()
+    
     existing_conn.close()
     new_conn.close()
 
@@ -117,7 +123,7 @@ def main():
         end_time = time.time()  # End timing
         print(f"Script execution time: {end_time - start_time:.4f} seconds")  # Print execution time
 
-def audit_log_table(existing_cur, new_cur, limit=None):
+def audit_log_table(existing_cur, new_cur, limit=None, sort_order='DESC'):
     new_cur.execute("""
     CREATE TABLE "AuditLog" (
         "ChangeHistoryId" INTEGER NOT NULL,
@@ -131,7 +137,7 @@ def audit_log_table(existing_cur, new_cur, limit=None):
     )
     """)
 
-    query = """
+    query = f"""
     SELECT
         EFChangeHistory.ChangeHistoryId,
         EFChangeHistory.TypeOfChange,
@@ -142,6 +148,7 @@ def audit_log_table(existing_cur, new_cur, limit=None):
         EFChangeHistory.TargetEntityId
     FROM
         EFChangeHistory
+    ORDER BY ChangeHistoryId {sort_order}
     """
     if limit:
         query += f" LIMIT {limit}"
@@ -196,7 +203,7 @@ def audit_log_table(existing_cur, new_cur, limit=None):
         new_row = (row[0], type_of_change, row[2], row[3], row[4], client_name_map[origin_entity_id], client_name_map[target_entity_id])
         new_cur.execute("INSERT INTO \"AuditLog\" (ChangeHistoryId, TypeOfChange, Time, Data, Command, Origin, Target) VALUES (?, ?, ?, ?, ?, ?, ?)", new_row)
 
-def client_connection_history_table(existing_cur, new_cur, limit=None):
+def client_connection_history_table(existing_cur, new_cur, limit=None, sort_order='DESC'):
     new_cur.execute("""
     CREATE TABLE "ClientConnectionHistory" (
         "ConnectionId" INTEGER NOT NULL,
@@ -208,7 +215,7 @@ def client_connection_history_table(existing_cur, new_cur, limit=None):
     )
     """)
 
-    query = """
+    query = f"""
     SELECT
         EFClientConnectionHistory.ClientConnectionId,
         EFClientConnectionHistory.ClientId,
@@ -217,6 +224,7 @@ def client_connection_history_table(existing_cur, new_cur, limit=None):
         EFClientConnectionHistory.ServerId
     FROM
         EFClientConnectionHistory
+    ORDER BY ClientConnectionId {sort_order}
     """
     if limit:
         query += f" LIMIT {limit}"
@@ -263,7 +271,7 @@ def client_connection_history_table(existing_cur, new_cur, limit=None):
         new_row = (row[0], client_name, row[2], connection_type, server_hostname)
         new_cur.execute("INSERT INTO ClientConnectionHistory (ConnectionId, Client, ConnectionTime, ConnectionType, Server) VALUES (?, ?, ?, ?, ?)", new_row)
 
-def client_messages_table(existing_cur, new_cur, limit=None):
+def client_messages_table(existing_cur, new_cur, limit=None, sort_order='DESC'):
     new_cur.execute("""
     CREATE TABLE "ClientMessages" (
         "MessageId" INTEGER NOT NULL,
@@ -275,7 +283,7 @@ def client_messages_table(existing_cur, new_cur, limit=None):
     )
     """)
 
-    query = """
+    query = f"""
     SELECT
         EFClientMessages.MessageId,
         EFClientMessages.ClientId,
@@ -284,6 +292,7 @@ def client_messages_table(existing_cur, new_cur, limit=None):
         EFClientMessages.ServerId
     FROM
         EFClientMessages
+    ORDER BY MessageId {sort_order}
     """
     if limit:
         query += f" LIMIT {limit}"
@@ -330,7 +339,7 @@ def client_messages_table(existing_cur, new_cur, limit=None):
         new_row = (row[0], client_name, row[2], row[3], server_hostname)
         new_cur.execute("INSERT INTO ClientMessages (MessageId, Client, Message, TimeSent, Server) VALUES (?, ?, ?, ?, ?)", new_row)
 
-def clients_table(existing_cur, new_cur, limit=None):
+def clients_table(existing_cur, new_cur, limit=None, sort_order='DESC'):
     new_cur.execute("""
     CREATE TABLE "Clients" (
         "Connections" INTEGER NOT NULL,
@@ -345,7 +354,7 @@ def clients_table(existing_cur, new_cur, limit=None):
     )
     """)
 
-    query = """
+    query = f"""
     SELECT
         EFClients.Connections,
         EFClients.CurrentAliasId,
@@ -360,6 +369,7 @@ def clients_table(existing_cur, new_cur, limit=None):
         EFClients
     JOIN
         EFAlias ON EFClients.CurrentAliasId = EFAlias.AliasId
+    ORDER BY LastConnection {sort_order}
     """
     if limit:
         query += f" LIMIT {limit}"
@@ -405,7 +415,7 @@ def clients_table(existing_cur, new_cur, limit=None):
         new_row = (connections, client_name, first_connection, game, last_connection, level, masked, total_connection_time, ip_address)
         new_cur.execute("INSERT INTO Clients (Connections, Name, FirstConnection, Game, LastConnection, Level, Masked, TotalConnectionTime, IP) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", new_row)
 
-def ip_address_table(existing_cur, new_cur, limit=None):
+def ip_address_table(existing_cur, new_cur, limit=None, sort_order='DESC'):
     def fetch_client_info(src_cur):
         src_cur.execute("""
         SELECT Name, SearchableIPAddress, DateAdded FROM EFAlias
@@ -433,7 +443,7 @@ def ip_address_table(existing_cur, new_cur, limit=None):
     ) VALUES (?, ?, ?)
     """, client_info)
 
-def inbox_messages_modified_table(existing_cur, new_cur, limit=None):
+def inbox_messages_modified_table(existing_cur, new_cur, limit=None, sort_order='DESC'):
     new_cur.execute("""
     CREATE TABLE InboxMessagesModified (
         InboxMessageId INTEGER PRIMARY KEY,
@@ -470,7 +480,7 @@ def inbox_messages_modified_table(existing_cur, new_cur, limit=None):
         VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (msg_id, created, origin, target, server_id, message, read))
 
-def maps_table(existing_cur, new_cur, limit=None):
+def maps_table(existing_cur, new_cur, limit=None, sort_order='DESC'):
     new_cur.execute("""
     CREATE TABLE IF NOT EXISTS "Maps" (
         "MapId" INTEGER NOT NULL,
@@ -481,11 +491,12 @@ def maps_table(existing_cur, new_cur, limit=None):
     )
     """)
 
-    query = """
+    query = f"""
     SELECT
         MapId, CreatedDateTime, Name, Game
     FROM
         EFMaps
+    ORDER BY MapId {sort_order}
     """
     if limit:
         query += f" LIMIT {limit}"
@@ -505,7 +516,7 @@ def maps_table(existing_cur, new_cur, limit=None):
     ) VALUES (?, ?, ?, ?)
     """, modified_rows)
 
-def metadata_table(existing_cur, new_cur, limit=None):
+def metadata_table(existing_cur, new_cur, limit=None, sort_order='DESC'):
     new_cur.execute("""
     CREATE TABLE "Metadata" (
         "MetaId" INTEGER NOT NULL,
@@ -516,7 +527,7 @@ def metadata_table(existing_cur, new_cur, limit=None):
     )
     """)
 
-    query = """
+    query = f"""
     SELECT
         EFMeta.MetaId,
         EFMeta.ClientId,
@@ -525,6 +536,7 @@ def metadata_table(existing_cur, new_cur, limit=None):
         EFMeta.Value
     FROM
         EFMeta
+    ORDER BY MetaId {sort_order}
     """
     if limit:
         query += f" LIMIT {limit}"
@@ -576,7 +588,7 @@ def metadata_table(existing_cur, new_cur, limit=None):
         new_row = (meta_id, client_name, created, key, value)
         new_cur.execute("INSERT INTO Metadata (MetaId, Name, Timestamp, Note, Value) VALUES (?, ?, ?, ?, ?)", new_row)
 
-def penalties_table(existing_cur, new_cur, limit=None):
+def penalties_table(existing_cur, new_cur, limit=None, sort_order='DESC'):
     new_cur.execute("""
     CREATE TABLE "Penalties" (
         "PenaltyId" INTEGER NOT NULL,
@@ -591,7 +603,7 @@ def penalties_table(existing_cur, new_cur, limit=None):
     )
     """)
 
-    query = """
+    query = f"""
     SELECT
         EFPenalties.PenaltyId,
         EFPenalties.AutomatedOffense,
@@ -604,6 +616,7 @@ def penalties_table(existing_cur, new_cur, limit=None):
         EFPenalties."When"
     FROM
         EFPenalties
+    ORDER BY PenaltyId {sort_order}
     """
     if limit:
         query += f" LIMIT {limit}"
@@ -695,7 +708,7 @@ def penalties_table(existing_cur, new_cur, limit=None):
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (penalty_id, automated_offense, expires, evaded_offense, offender_name, offense, punisher_name, penalty_type, timestamp))
 
-def penalty_identifiers_table(existing_cur, new_cur, limit=None):
+def penalty_identifiers_table(existing_cur, new_cur, limit=None, sort_order='DESC'):
     new_cur.execute("""
     CREATE TABLE "PenaltyIdentifiers" (
         "PenaltyIdentifierId" INTEGER NOT NULL,
@@ -705,7 +718,7 @@ def penalty_identifiers_table(existing_cur, new_cur, limit=None):
     )
     """)
 
-    query = """
+    query = f"""
     SELECT
         EFPenaltyIdentifiers.PenaltyIdentifierId,
         EFPenaltyIdentifiers.PenaltyId,
@@ -713,6 +726,7 @@ def penalty_identifiers_table(existing_cur, new_cur, limit=None):
         EFPenaltyIdentifiers.NetworkId
     FROM
         EFPenaltyIdentifiers
+    ORDER BY PenaltyIdentifierId {sort_order}
     """
     if limit:
         query += f" LIMIT {limit}"
@@ -754,7 +768,7 @@ def penalty_identifiers_table(existing_cur, new_cur, limit=None):
         VALUES (?, ?, ?, ?)
         """, (penalty_identifier_id, penalty_id, created, client_name))
 
-def servers_table(existing_cur, new_cur, limit=None):
+def servers_table(existing_cur, new_cur, limit=None, sort_order='DESC'):
     new_cur.execute("""
     CREATE TABLE "Servers" (
         "ServerId" INTEGER NOT NULL,
@@ -767,9 +781,10 @@ def servers_table(existing_cur, new_cur, limit=None):
     )
     """)
 
-    query = """
+    query = f"""
     SELECT ServerId, Active, Port, Endpoint, GameName, HostName, IsPasswordProtected
     FROM EFServers
+    ORDER BY ServerId {sort_order}
     """
     if limit:
         query += f" LIMIT {limit}"
