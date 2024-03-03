@@ -18,6 +18,12 @@ def setup_argparser():
     parser.add_argument('-o', '--output', type=str, help="Output directory for the parsed database file.")
     return parser.parse_args()
 
+def delete_existing_db(output_db_path):
+    """Check for an existing parsed DB and delete it if found."""
+    if os.path.exists(output_db_path):
+        os.remove(output_db_path)
+        print(f"Existing parsed database at {output_db_path} has been deleted.")
+
 def main():
     args = setup_argparser()
 
@@ -30,6 +36,9 @@ def main():
         print(f"Creating output directory at {output_dir}")
         os.makedirs(output_dir, exist_ok=True)
 
+    # Delete existing parsed database if it exists
+    delete_existing_db(output_db_path)
+
     # Check if the specified Database.db exists
     if not os.path.isfile(db_path):
         print(f"No database file ({db_path}) found. Please ensure the file exists.")
@@ -41,8 +50,25 @@ def main():
     new_conn = sqlite3.connect(output_db_path)
     new_cur = new_conn.cursor()
 
-    # ------------------- IPAddresses Table -------------------
+    # Process each table
+    ip_address_table(existing_cur, new_cur)
+    audit_log_table(existing_cur, new_cur)
+    client_connection_table(existing_cur, new_cur)
+    messages_table(existing_cur, new_cur)
+    client_table(existing_cur, new_cur)
+    maps_table(existing_cur, new_cur)
+    meta_table(existing_cur, new_cur)
+    penalties_table(existing_cur, new_cur)
+    penalty_Identifiers_table(existing_cur, new_cur)
+    servers_table(existing_cur, new_cur)
+    inbox_messages_table(existing_cur, new_cur)
 
+    # Commit and close
+    new_conn.commit()
+    existing_conn.close()
+    new_conn.close()
+
+def ip_address_table(existing_cur, new_cur):
     def fetch_client_info(src_cur):
         src_cur.execute("""
         SELECT Name, SearchableIPAddress, DateAdded FROM EFAlias
@@ -70,8 +96,7 @@ def main():
     ) VALUES (?, ?, ?)
     """, client_info)
 
-    # ------------------- AuditLog Table -------------------
-
+def audit_log_table(existing_cur, new_cur):
     new_cur.execute("""
     CREATE TABLE "AuditLog" (
         "ChangeHistoryId" INTEGER NOT NULL,
@@ -146,8 +171,7 @@ def main():
         new_row = (row[0], type_of_change, row[2], row[3], row[4], client_name_map[origin_entity_id], client_name_map[target_entity_id])
         new_cur.execute("INSERT INTO \"AuditLog\" (ChangeHistoryId, TypeOfChange, Time, Data, Command, Origin, Target) VALUES (?, ?, ?, ?, ?, ?, ?)", new_row)
 
-    # ------------------- ClientConnectionHistory Table -------------------
-
+def client_connection_table(existing_cur, new_cur):
     new_cur.execute("""
     CREATE TABLE "ClientConnectionHistory" (
         "ConnectionId" INTEGER NOT NULL,
@@ -210,8 +234,7 @@ def main():
         new_row = (row[0], client_name, row[2], connection_type, server_hostname)
         new_cur.execute("INSERT INTO ClientConnectionHistory (ConnectionId, Client, ConnectionTime, ConnectionType, Server) VALUES (?, ?, ?, ?, ?)", new_row)
 
-    # ------------------- Messages Table -------------------
-
+def messages_table(existing_cur, new_cur):
     new_cur.execute("""
     CREATE TABLE "ClientMessages" (
         "MessageId" INTEGER NOT NULL,
@@ -274,8 +297,7 @@ def main():
         new_row = (row[0], client_name, row[2], row[3], server_hostname)
         new_cur.execute("INSERT INTO ClientMessages (MessageId, Client, Message, TimeSent, Server) VALUES (?, ?, ?, ?, ?)", new_row)
 
-    # ------------------- Clients Table -------------------
-
+def client_table(existing_cur, new_cur):
     new_cur.execute("""
     CREATE TABLE "Clients" (
         "Connections" INTEGER NOT NULL,
@@ -346,8 +368,7 @@ def main():
         new_row = (connections, client_name, first_connection, game, last_connection, level, masked, total_connection_time, ip_address)
         new_cur.execute("INSERT INTO Clients (Connections, Name, FirstConnection, Game, LastConnection, Level, Masked, TotalConnectionTime, IP) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", new_row)
 
-    # ------------------- Maps Table -------------------
-
+def maps_table(existing_cur, new_cur):
     new_cur.execute("""
     CREATE TABLE IF NOT EXISTS "Maps" (
         "MapId" INTEGER NOT NULL,
@@ -378,8 +399,7 @@ def main():
     ) VALUES (?, ?, ?, ?)
     """, modified_rows)
 
-    # ------------------- Meta Table -------------------
-
+def meta_table(existing_cur, new_cur):
     new_cur.execute("""
     CREATE TABLE "Metadata" (
         "MetaId" INTEGER NOT NULL,
@@ -446,8 +466,7 @@ def main():
         new_row = (meta_id, client_name, created, key, value)
         new_cur.execute("INSERT INTO Metadata (MetaId, Name, Timestamp, Note, Value) VALUES (?, ?, ?, ?, ?)", new_row)
 
-    # ------------------- Penalties Table -------------------
-
+def penalties_table(existing_cur, new_cur):
     new_cur.execute("""
     CREATE TABLE "Penalties" (
         "PenaltyId" INTEGER NOT NULL,
@@ -562,8 +581,7 @@ def main():
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (penalty_id, automated_offense, expires, evaded_offense, offender_name, offense, punisher_name, penalty_type, timestamp))
 
-    # ------------------- PenaltyIdentifiers Table -------------------
-
+def penalty_Identifiers_table(existing_cur, new_cur):
     new_cur.execute("""
     CREATE TABLE "PenaltyIdentifiers" (
         "PenaltyIdentifierId" INTEGER NOT NULL,
@@ -618,8 +636,7 @@ def main():
         VALUES (?, ?, ?, ?)
         """, (penalty_identifier_id, penalty_id, created, client_name))
 
-    # ------------------- Servers Table -------------------
-
+def servers_table(existing_cur, new_cur):
     new_cur.execute("""
     CREATE TABLE "Servers" (
         "ServerId" INTEGER NOT NULL,
@@ -665,8 +682,7 @@ def main():
         ) VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (server_id, active, port, endpoint, game_name, server_name, password))
 
-    # ------------------- InboxMessages Table -------------------
-
+def inbox_messages_table(existing_cur, new_cur):
     new_cur.execute("""
     CREATE TABLE InboxMessagesModified (
         InboxMessageId INTEGER PRIMARY KEY,
@@ -702,12 +718,6 @@ def main():
         INSERT INTO InboxMessagesModified (InboxMessageId, Created, Origin, Target, ServerId, Message, Read)
         VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (msg_id, created, origin, target, server_id, message, read))
-
-    # ------------------- End -------------------
-
-    new_conn.commit()
-    existing_conn.close()
-    new_conn.close()
 
 if __name__ == '__main__':
     main()
